@@ -19,4 +19,5 @@ _kai_test_asm:
 	movq $str.len, %rdx // the size of the value to print
 	syscall
 
+	mov $0, %rax
 	retq
