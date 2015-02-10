@@ -18,6 +18,6 @@ int main(int argc, char *argv[]) {
 		fprintf(stderr, "%s does not accept any arguments.\n", argv[0]);
 	}
 
-	kai_throw("hello");
+	return kai_throw("string");
 
 }

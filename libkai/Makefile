@@ -4,7 +4,7 @@ OBJ=$(SRC:.c=.o)
 LIB=libkai.o
 
 # comp library
-LIBS=threads/libthread.o
+LIBS=lex/liblex.o
 CFLAGS+=-I$(dir $(LIBS))
 
 .PHONY: all clean

@@ -4,10 +4,10 @@
 This file describes the api for the comp library.
 */
 
-// unified data structure.
-typedef struct {
-
-} kai;
+#ifndef KAI_H_
+#define KAI_H_
 
 // throw a string to the kai compiler.
 int kai_throw(char *str);
+
+#endif // KAI_H_
