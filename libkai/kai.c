@@ -4,15 +4,24 @@
 This file fulfils some of the api for the comp library.
 */
 
+#include <stdio.h>
 #include "lex.h"
 
 int kai_throw(char *str) {
-	kai_lex lex;
-	if (kai_lex_init(&lex)) {
-		return 1;
+	kai_lex lex[1];
+
+	const int len = (sizeof(lex) / sizeof(kai_lex));
+
+	for (int i = 0; i < len; i++) {
+		if (kai_lex_init(&lex[i])) {
+			return 1;
+		}
 	}
-	if (kai_lex_throw(&lex, str)) {
-		return 2;
+
+	for (int i = 0; i < len; i++) {
+		if (kai_lex_throw(&lex[i], str)) {
+			return 2;
+		}
 	}
 	return 0;
 }

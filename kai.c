@@ -5,6 +5,7 @@ This file describes a command line utility utilizing the comp library.
 */
 
 #include <stdio.h>
+#include <stdlib.h>
 #include "kai.h"
 
 // accepts command line arguments
@@ -18,6 +19,9 @@ int main(int argc, char *argv[]) {
 		fprintf(stderr, "%s does not accept any arguments.\n", argv[0]);
 	}
 
-	return kai_throw("string");
+	size_t len = 4096;
+	char *str = malloc(len);
+	getline(&str, &len, stdin);
+	kai_throw(str);
 
 }

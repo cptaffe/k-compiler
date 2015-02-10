@@ -3,6 +3,8 @@ SRC=lex.c
 OBJ=$(SRC:.c=.o)
 LIB=liblex.o
 
+CFLAGS+= --std=gnu99
+
 .PHONY: all clean
 
 all: $(LIB)
