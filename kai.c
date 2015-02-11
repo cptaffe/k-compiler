@@ -19,9 +19,10 @@ int main(int argc, char *argv[]) {
 		fprintf(stderr, "%s does not accept any arguments.\n", argv[0]);
 	}
 
-	size_t len = 4096;
-	char *str = malloc(len);
-	getline(&str, &len, stdin);
-	kai_throw(str);
+	size_t len = 0;
+	char *str = NULL;
+	while (getline(&str, &len, stdin) != -1) {
+		kai_throw(str);
+	}
 
 }

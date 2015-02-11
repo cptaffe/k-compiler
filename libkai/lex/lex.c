@@ -2,8 +2,20 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdarg.h>
 
 #include "lex.h"
+
+void lex_err(kai_lex *lex, char *msg, ...) {
+	char *str;
+	va_list ap;
+	va_start(ap, msg);
+	vasprintf(&str, msg, ap);
+	va_end(ap);
+
+	printf("%d:%d %s\n", lex->pos.line_pos + 1, lex->pos.char_pos + 1, str);
+	free(str);
+}
 
 int lex_next(kai_lex *lex) {
 
@@ -44,9 +56,9 @@ int lex_peek(kai_lex *lex) {
 
 int lex_emit(kai_lex *lex) {
 	// copy
-	char str[lex->buf.at - lex->buf.base];
-	memcpy(&str[0], &lex->buf.buf[lex->buf.base], sizeof(str));
-	str[sizeof(str)] = 0; // null terminate
+	char str[(lex->buf.at - lex->buf.base) + 1];
+	memcpy(&str[0], &lex->buf.buf[lex->buf.base], sizeof(str) - 1);
+	str[sizeof(str) - 1] = 0; // null terminate
 
 	// rebase
 	lex->buf.at = 0;
@@ -63,30 +75,46 @@ int lex_dump(kai_lex *lex) {
 	return 0;
 }
 
-// function declaration
+/*
+lex_char_is_{} is used to report if a character is valid in a set.
+*/
+
+// char is in identifiers
 int lex_char_is_id(char c) {
 	if ((c <= 'z' && c >= 'a') || (c <= 'Z' && c >= 'A') || c == '_') {
 		return 1;
 	} else { return 0; }
 }
 
+// char is in numbers
 int lex_char_is_num(char c) {
 	if (c >= '0' && c <= '9') {
 		return 1;
 	} else { return 0; }
 }
 
-// function declaration
+// char is in whitespace
 int lex_char_is_ws(char c) {
 	if (c == '\t' || c == '\n' || c == ' ') {
 		return 1;
 	} else { return 0; }
 }
 
+/*
+lex_util_{} denotes a reusable lexer function,
+it is not part of the state machine directly.
+*/
+
+// lexes identifiers
 int lex_util_id(kai_lex *lex) {
 	int pos = lex->pos.pos;
 	char c;
-	while (lex_char_is_id(c = lex_next(lex))) {}
+
+	// first character is not a number
+	if (lex_char_is_id(lex_next(lex))) {
+		// all other characters are identifiers or numbers
+		while (lex_char_is_id(c = lex_next(lex)) || lex_char_is_num(c)) {}
+	}
 	lex_back(lex);
 	if (lex->pos.pos > pos) {
 		lex_emit(lex);
@@ -94,6 +122,20 @@ int lex_util_id(kai_lex *lex) {
 	} else { return 0; }
 }
 
+// lexes identifiers
+int lex_util_num(kai_lex *lex) {
+	int pos = lex->pos.pos;
+	char c;
+
+	while (lex_char_is_num(c = lex_next(lex))) {}
+	lex_back(lex);
+	if (lex->pos.pos > pos) {
+		lex_emit(lex);
+		return 1;
+	} else { return 0; }
+}
+
+// lexes whitespace
 int lex_util_ws(kai_lex *lex) {
 	int pos = lex->pos.pos;
 	char c;
@@ -105,6 +147,8 @@ int lex_util_ws(kai_lex *lex) {
 	} else { return 0; }
 }
 
+// lexes paren
+// 0 for opening paren, 1 for closing paren
 int lex_util_paren(kai_lex *lex, int i) {
 	char parens[2] = {'(', ')'};
 	char c = lex_next(lex);
@@ -114,20 +158,27 @@ int lex_util_paren(kai_lex *lex, int i) {
 	} else {
 		// syntax error
 		lex_dump(lex);
-		printf("%d:%d err: unexpected character '%c'\n", lex->pos.line_pos + 1, lex->pos.char_pos, c);
+		lex_err(lex, "unexpected character '%c'", c);
 		return 0; // cannot continue
 	}
 }
 
+/*
+lex_state_{} functions denote monadic state machine functions.
+*/
+
 void *lex_state_all(kai_lex *lex);
 
+// lexes terminal of a s-expression
 void *lex_state_sexp_term(kai_lex *lex) {
 	// expects paren
 	if (lex_util_paren(lex, 1)) {
+		lex_util_ws(lex); // optional whitespace
 		return &lex_state_all;
 	} else { return NULL; }
 }
 
+// lexes literals
 void *lex_state_lit(kai_lex *lex) {
 	char c = lex_peek(lex); // check character
 	if (c == '"') {
@@ -138,18 +189,21 @@ void *lex_state_lit(kai_lex *lex) {
 		return NULL;
 	} else if (lex_char_is_num(c)) {
 		// lex number literal
-		return NULL;
+		lex_util_num(lex);
 	} else if (lex_char_is_id(c)) {
 		// lex identifier
-		return NULL;
+		lex_util_id(lex);
 	} else if (c == ')') {
 		// end of list
 		return &lex_state_sexp_term;
 	} else {
 		// does not conform to any literal, err
-		printf("%d:%d err: unexpected character for list '%c'\n", lex->pos.line_pos + 1, lex->pos.char_pos, c);
+		lex_err(lex, "unexpected character for list '%c'", c);
 		return NULL;
 	}
+	// optional whitespace
+	lex_util_ws(lex);
+	return &lex_state_lit;
 }
 
 // id for sexp function or operation.
@@ -159,13 +213,17 @@ void *lex_state_sexp_name(kai_lex *lex) {
 		if (lex_peek(lex) != ')') {
 			if (lex_util_ws(lex)) {
 				return &lex_state_lit;
+			} else {
+				lex_err(lex, "expected whitespace");
+				return NULL;
 			}
 		} else {
 			return &lex_state_lit;
 		}
+	} else {
+		lex_err(lex, "expected id");
+		return NULL;
 	}
-	printf("%d:%d err: unexpected non-id\n", lex->pos.line_pos + 1, lex->pos.char_pos);
-	return NULL; // does not conform, cannot continue
 }
 
 // lex sexp
@@ -182,6 +240,8 @@ void *lex_state_all(kai_lex *lex) {
 		return NULL;
 	} else {
 		// start symbol
+		// optional whitespace
+		lex_util_ws(lex);
 		return &lex_state_sexp;
 	}
 }
@@ -195,7 +255,6 @@ int lex_state(kai_lex *lex) {
 }
 
 int kai_lex_throw(kai_lex *lex, char *str) {
-	printf("got: %s\n", str);
 	lex->buf.str = str; // set string
 	lex_state(lex); // run state machine
 	return 0;
